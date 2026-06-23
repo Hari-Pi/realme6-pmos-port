@@ -1,0 +1,32 @@
+--- linux-realme-nemo/APKBUILD	2026-06-23 16:57:34.155887410 +0530
++++ pmaports-tmp/aports/device/testing/linux-realme-nemo/APKBUILD	2026-06-23 17:27:54.310533988 +0530
+@@ -25,18 +25,20 @@
+ 
+ _tag="$pkgver-r0"
+ _config="config-$_flavor.$arch"
++_dts="mt6785-realme-nemo.dts"
+ source="
+ 	https://gitlab.postmarketos.org/mt6785-mainline/linux/-/archive/$_tag/linux-$_tag.tar.gz
+ 	$_config
++	$_dts
+ "
+ builddir="$srcdir/linux-$_tag"
+ 
+ prepare() {
+ 	default_prepare
+ 	cp "$srcdir/$_config" .config
+-	# DTS is already in the kernel source tree at:
+-	# arch/arm64/boot/dts/mediatek/mt6785-realme-nemo.dts
+-	# Make sure it's included in the Makefile
++	# Drop our DTS into the kernel tree and make sure it is built.
++	install -D -m 644 "$srcdir/$_dts" \
++		arch/arm64/boot/dts/mediatek/$_dts
+ 	if ! grep -q 'mt6785-realme-nemo.dtb' arch/arm64/boot/dts/mediatek/Makefile; then
+ 		sed -i '/mt6785-xiaomi-begonia.dtb/a dtb-$(CONFIG_ARCH_MEDIATEK) += mt6785-realme-nemo.dtb' \
+ 			arch/arm64/boot/dts/mediatek/Makefile
+@@ -67,4 +69,5 @@
+ sha512sums="
+ d65e1b9fb3950b6535bbe8b901809f2ff790f52adadb3f0a6e1bb48c0b39949ef49e08bd9e5ba9f5f632a0ad1cd18abba5d8316d33ad1ebc887fce59a0a94489  linux-6.16.4-r0.tar.gz
+ 23e93d2b92c498d565b3669f9d57d91fbd9267b262f071fad6cab288f2e8cdffe189a0a66072d69b299ca44edeb1d55d37ec2baea16c2238736e23f6b6855a40  config-realme-nemo.aarch64
++db8d067af71fb906aeadee47a87f4ef65d5835d03e3725b9fbfe1b8eaef1c5fda17e4c095e39a7980b192560adf256e7cd6eee02e351e5e659f9a945f27c4a4b  mt6785-realme-nemo.dts
+ "

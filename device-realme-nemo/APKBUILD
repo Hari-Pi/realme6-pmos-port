@@ -1,0 +1,41 @@
+# Reference: <https://postmarketos.org/devicepkg>
+# Maintainer: Dazai <dazai@gmail.com>
+pkgname=device-realme-nemo
+pkgdesc="Realme 6 (RMX2001)"
+pkgver=2
+pkgrel=0
+url="https://postmarketos.org"
+license="MIT"
+arch="aarch64"
+options="!check !archcheck"
+depends="
+	android-tools
+	linux-realme-nemo
+	mkbootimg
+	postmarketos-base
+"
+makedepends="android-tools devicepkg-dev dtc"
+source="deviceinfo kernel-cmdline.conf modules-initfs"
+
+build() {
+	devicepkg_build $startdir $pkgname
+
+	# MTK LK bootloader requires a recovery_dtbo (even if empty)
+	mkdir -p "$builddir"
+	echo '/dts-v1/;/{};' | dtc -I dts -O dtb -o "$builddir/empty.dtb"
+	mkdtboimg create "$builddir/empty.dtbo" "$builddir/empty.dtb"
+}
+
+package() {
+	devicepkg_package $startdir $pkgname
+
+	mkdir -p "$pkgdir/boot"
+	install -Dm644 "$builddir/empty.dtbo" \
+		"$pkgdir/boot/"
+}
+
+sha512sums="
+15cddd69a1373309909052c41ab2a64cc23c6fb65cf0990081bbcddf880dc9ac7e975e2f1eea6ed4b093050e19be4b625aaf99365b0e10f3b271348abeffb374  deviceinfo
+45bd9a0cfabacb7824232c92d6d2d0759d7e83d92b8b3e9cb608f738a1966c1fce2bbf5179293a5039f45c8613ac9836cb10eb07b0847f9b362ee0c06e7ecdbe  kernel-cmdline.conf
+ce944d3091079ab870faaccbaf136f5b9ca6ce25ac1eceea41ed4084ff7eda65e22cb2d670ec2f4f8a3edd427ba620a78f6d7525665ae4f3dc75703abdee133b  modules-initfs
+"

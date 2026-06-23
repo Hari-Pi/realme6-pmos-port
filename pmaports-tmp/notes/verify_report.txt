@@ -1,0 +1,124 @@
+boot magic: ANDROID!
+kernel_size: 10424249
+kernel load address: 0x40080000
+ramdisk size: 14152821
+ramdisk load address: 0x47c80000
+second bootloader size: 0
+second bootloader load address: 0x00000000
+kernel tags load address: 0x4bc80000
+page size: 2048
+os version: None
+os patch level: None
+boot image header version: 2
+product name: 
+command line args: bootopt=64S3,32N2,64N2 gpt=1 loop.max_part=7 rw pmos_rootfsopts=defaults
+additional command line args: 
+recovery dtbo size: 136
+recovery dtbo offset: 0x0000000001771000
+boot header size: 1660
+dtb size: 41585
+dtb address: 0x000000004bc80000
+boot magic: ANDROID!
+kernel_size: 10424258
+kernel load address: 0x40080000
+ramdisk size: 14149907
+ramdisk load address: 0x47c80000
+second bootloader size: 0
+second bootloader load address: 0x40f00000
+kernel tags load address: 0x4bc80000
+page size: 2048
+os version: None
+os patch level: None
+boot image header version: 2
+product name: 
+command line args: quiet splash plymouth.ignore-serial-consoles plymouth.prefer-fbcon bootopt=64S3,32N2,64N2 androidboot.serialconsole=0 gpt=1 loop.max_part=7 rw
+additional command line args: 
+recovery dtbo size: 136
+recovery dtbo offset: 0x0000000001770800
+boot header size: 1660
+dtb size: 41585
+dtb address: 0x0000000041f00000
+=== Comparing boot-produced.img vs boot-fixed.img ===
+
+[file size]   ref=  33,554,432  prod=  24,623,104  delta=-8,931,328
+
+[boot image header]
+  magic                 ref=b'ANDROID!'  prod=b'ANDROID!' ==
+  header_version        ref=2  prod=2 ==
+  page_size             ref=2048  prod=2048 ==
+  kernel_addr           ref=1074266112  prod=1074266112 ==
+  kernel_size           ref=10424249  prod=10424258 !=
+  ramdisk_addr          ref=1204289536  prod=1204289536 ==
+  ramdisk_size          ref=14152821  prod=14149907 !=
+  second_size           ref=0  prod=0 ==
+  tags_addr             ref=1271398400  prod=1271398400 ==
+  name                  ref=''  prod='' ==
+  cmdline               ref='bootopt=64S3,32N2,64N2 gpt=1 loop.max_part=7 rw pmos_rootfsopts=defaults'  (72 chars)
+                        prod='quiet splash plymouth.ignore-serial-consoles plymouth.prefer-fbcon bootopt=64S3,32N2,64N2 androidboot.serialconsole=0 gpt=1 loop.max_part=7 rw'  (142 chars) !=
+  extra_cmdline         ref='���^�|�\t�ۜ�p���N5,'  prod='Z]9��p������\x1b\r�\x0c��1\x19' !=
+
+[unpacking]
+  kernel          ref=size=10,424,249 sha=6a41be853bb946d8...  prod=size=10,424,258 sha=7818d4cd63637c68...  same_sha=NO
+  ramdisk         ref=size=14,152,821 sha=11346d80fb08de59...  prod=size=14,149,907 sha=b61555977d39b603...  same_sha=NO
+  dtb             ref=size=  41,585 sha=a340f0aa2ea190df...  prod=size=  41,585 sha=a340f0aa2ea190df...  same_sha=YES
+  recovery_dtbo   ref=size=     136 sha=f72e1df52c33bde1...  prod=size=     136 sha=f72e1df52c33bde1...  same_sha=YES
+
+[DTB details]
+  ref : {}
+  ref model/compat : {'model': 'Realme 6', 'compatible': 'realme,nemo'}
+  prod model/compat: {'model': 'Realme 6', 'compatible': 'realme,nemo'}
+
+[AVB footer]
+--- REF ---
+Footer version:           1.0
+Image size:               33554432 bytes
+Original image size:      24625152 bytes
+VBMeta offset:            24625152
+VBMeta size:              512 bytes
+--
+Minimum libavb version:   1.0
+Header Block:             256 bytes
+Authentication Block:     0 bytes
+Auxiliary Block:          256 bytes
+Algorithm:                NONE
+Rollback Index:           0
+Flags:                    0
+Rollback Index Location:  0
+Release String:           'avbtool 1.3.0'
+Descriptors:
+    Hash descriptor:
+      Image Size:            24625152 bytes
+      Hash Algorithm:        sha256
+      Partition Name:        boot
+      Salt:                  1960ca82b219fc0489b2ab27c33d2ab006fc1017445690520abb59ebfc7d776f
+      Digest:                334b7f493a6af1a8c20d6ccb47b9bc13f8220c4020e574c79ef251f2c2908a2d
+      Flags:                 0
+
+--- PROD (raw) ---
+avbtool error: /usr/bin/avbtool: Given image does not look like a vbmeta image.
+
+--- PROD (AVB-padded to 32 MiB) ---
+Footer version:           1.0
+Image size:               33554432 bytes
+Original image size:      24623104 bytes
+VBMeta offset:            24625152
+VBMeta size:              512 bytes
+--
+Minimum libavb version:   1.0
+Header Block:             256 bytes
+Authentication Block:     0 bytes
+Auxiliary Block:          256 bytes
+Algorithm:                NONE
+Rollback Index:           0
+Flags:                    0
+Rollback Index Location:  0
+Release String:           'avbtool 1.3.0'
+Descriptors:
+    Hash descriptor:
+      Image Size:            24623104 bytes
+      Hash Algorithm:        sha256
+      Partition Name:        boot
+      Salt:                  b805938434da80b85928174d424b3ffe2bd3cda16be9612f226b2dffd1f395a4
+      Digest:                ee8f7b4143bedb9bb0eea0e9507b16b8245feb7113e9ed60098b6e84546f78a6
+      Flags:                 0
+

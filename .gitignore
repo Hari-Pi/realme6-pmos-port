@@ -1,0 +1,8 @@
+# pmaports-tmp layout: only notes/ metadata is tracked
+# Build cache, chroots, source clones
+pmaports-tmp/work/
+pmaports-tmp/aports/
+pmaports-tmp/pmbootstrap/
+# Binary build outputs in notes/
+pmaports-tmp/notes/*.img
+pmaports-tmp/notes/*.zip

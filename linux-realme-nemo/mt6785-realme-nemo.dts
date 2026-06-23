@@ -1,0 +1,332 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+
+/dts-v1/;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/regulator/mediatek,mt6360-regulator.h>
+#include <dt-bindings/usb/pd.h>
+
+#include "mt6785.dtsi"
+#include "mt6359.dtsi"
+
+/ {
+	model = "Realme 6";
+	compatible = "realme,nemo", "mediatek,mt6785";
+	chassis-type = "handset";
+
+	chosen {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		bootargs = "";
+	};
+
+	/* needed by Little Kernel */
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+	};
+
+	/* needed by Little Kernel */
+	scp {
+		compatible = "mediatek,scp";
+	};
+};
+
+&cci {
+	proc-supply = <&mt6359_vproc2_buck_reg>;
+};
+
+&cpu0 {
+	proc-supply = <&mt6359_vproc2_buck_reg>;
+};
+
+&cpu1 {
+	proc-supply = <&mt6359_vproc2_buck_reg>;
+};
+
+&cpu2 {
+	proc-supply = <&mt6359_vproc2_buck_reg>;
+};
+
+&cpu3 {
+	proc-supply = <&mt6359_vproc2_buck_reg>;
+};
+
+&cpu4 {
+	proc-supply = <&mt6359_vproc2_buck_reg>;
+};
+
+&cpu5 {
+	proc-supply = <&mt6359_vproc2_buck_reg>;
+};
+
+&cpu6 {
+	proc-supply = <&mt6359_vproc1_buck_reg>;
+};
+
+&cpu7 {
+	proc-supply = <&mt6359_vproc1_buck_reg>;
+};
+
+&keypad {
+	linux,keymap = <MATRIX_KEY(0x00, 0x00, KEY_VOLUMEUP)
+			MATRIX_KEY(0x00, 0x01, KEY_VOLUMEDOWN)>;
+
+	keypad,num-rows = <1>;
+	keypad,num-columns = <2>;
+	debounce-delay-ms = <32>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&keypad_pins>;
+
+	status = "okay";
+};
+
+&i2c5 {
+	clock-frequency = <3400000>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c5_pins>;
+
+	status = "okay";
+
+	pmic@34 {
+		compatible = "mediatek,mt6360";
+		reg = <0x34>;
+
+		interrupts-extended = <&pio 16 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-names = "IRQB";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&mt6360_pins>;
+
+		charger {
+			compatible = "mediatek,mt6360-chg";
+			richtek,vinovp-microvolt = <14500000>;
+
+			otg_vbus_regulator: usb-otg-vbus-regulator {
+				regulator-name = "usb-otg-vbus";
+				regulator-max-microvolt = <5825000>;
+				regulator-min-microvolt = <4425000>;
+			};
+		};
+
+		regulator {
+			compatible = "mediatek,mt6360-regulator";
+			LDO_VIN3-supply = <&mt6360_vdram1_reg>;
+
+			buck1 {
+				regulator-name = "vapu";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1300000>;
+				regulator-allowed-modes = <MT6360_OPMODE_NORMAL
+							   MT6360_OPMODE_LP
+							   MT6360_OPMODE_ULP>;
+			};
+
+			mt6360_vdram1_reg: buck2 {
+				regulator-name = "vdram1";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1300000>;
+				regulator-allowed-modes = <MT6360_OPMODE_NORMAL
+							   MT6360_OPMODE_LP
+							   MT6360_OPMODE_ULP>;
+			};
+
+			ldo1 {
+				regulator-name = "vfp";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3600000>;
+				regulator-allowed-modes = <MT6360_OPMODE_NORMAL
+							   MT6360_OPMODE_LP>;
+			};
+
+			ldo2 {
+				regulator-name = "vtp";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3600000>;
+				regulator-allowed-modes = <MT6360_OPMODE_NORMAL
+							   MT6360_OPMODE_LP>;
+			};
+
+			mt6360_vmc_ldo_reg: ldo3 {
+				regulator-name = "vmc";
+				regulator-min-microvolt = <2700000>;
+				regulator-max-microvolt = <3600000>;
+				regulator-allowed-modes = <MT6360_OPMODE_NORMAL
+							   MT6360_OPMODE_LP>;
+			};
+
+			mt6360_vmch_ldo_reg: ldo5 {
+				regulator-name = "vmch";
+				regulator-min-microvolt = <2700000>;
+				regulator-max-microvolt = <3600000>;
+				regulator-allowed-modes = <MT6360_OPMODE_NORMAL
+							   MT6360_OPMODE_LP>;
+			};
+
+			ldo6 {
+				regulator-name = "vmddr";
+				regulator-min-microvolt = <500000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-allowed-modes = <MT6360_OPMODE_NORMAL
+							   MT6360_OPMODE_LP>;
+				regulator-always-on;
+			};
+
+			ldo7 {
+				regulator-name = "vdram2";
+				regulator-min-microvolt = <500000>;
+				regulator-max-microvolt = <2100000>;
+				regulator-allowed-modes = <MT6360_OPMODE_NORMAL
+							   MT6360_OPMODE_LP>;
+				regulator-always-on;
+			};
+		};
+
+		tcpc {
+			compatible = "mediatek,mt6360-tcpc";
+
+			interrupts-extended = <&pio 7 IRQ_TYPE_EDGE_FALLING>;
+			interrupt-names = "PD_IRQB";
+
+			connector {
+				compatible = "usb-c-connector";
+				label = "USB-C";
+				data-role = "dual";
+				op-sink-microwatt = <10000000>;
+				power-role = "dual";
+				try-power-role = "sink";
+
+				source-pdos = <PDO_FIXED(5000, 1500,
+							 PDO_FIXED_DUAL_ROLE |
+							 PDO_FIXED_DATA_SWAP)>;
+				sink-pdos = <PDO_FIXED(5000, 2000,
+						       PDO_FIXED_DUAL_ROLE |
+						       PDO_FIXED_DATA_SWAP)>;
+
+				port {
+					typec_con_hs: endpoint {
+						remote-endpoint = <&mtu3_hs0_role_sw>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&mt6359_vcore_buck_reg {
+	regulator-always-on;
+};
+
+&mt6359_vgpu11_buck_reg {
+	regulator-name = "vgpu";
+	regulator-min-microvolt = <550000>;
+	regulator-max-microvolt = <875000>;
+
+	regulator-coupled-with = <&mt6359_vpu_buck_reg>;
+	regulator-coupled-max-spread = <100000>;
+};
+
+&mt6359_vproc1_buck_reg {
+	regulator-name = "vproc_b";
+	regulator-always-on;
+};
+
+&mt6359_vproc2_buck_reg {
+	regulator-name = "vproc_l";
+	regulator-always-on;
+};
+
+&mt6359_vpu_buck_reg {
+	regulator-name = "vsram_gpu";
+	regulator-min-microvolt = <850000>;
+	regulator-max-microvolt = <975000>;
+
+	regulator-coupled-with = <&mt6359_vgpu11_buck_reg>;
+	regulator-coupled-max-spread = <100000>;
+};
+
+&mt6359_vsram_others_ldo_reg {
+	regulator-name = "vsram_core";
+	regulator-always-on;
+};
+
+&pio {
+	i2c5_pins: i2c5-pins {
+		pins-bus {
+			pinmux = <PINMUX_GPIO28__FUNC_SCL5>,
+				 <PINMUX_GPIO29__FUNC_SDA5>;
+			bias-pull-up;
+		};
+	};
+
+	keypad_pins: keypad-pins {
+		pins-volume {
+			pinmux = <PINMUX_GPIO59__FUNC_KPCOL0>,
+				 <PINMUX_GPIO60__FUNC_KPCOL1>;
+			input-enable;
+		};
+	};
+
+	mt6360_pins: mt6360-pins {
+		pins-interrupt {
+			pinmux = <PINMUX_GPIO7__FUNC_GPIO7>,
+				 <PINMUX_GPIO16__FUNC_GPIO16>;
+			bias-pull-up;
+			input-enable;
+		};
+	};
+};
+
+&pmic {
+	interrupts-extended = <&pio 193 IRQ_TYPE_LEVEL_HIGH>;
+
+	keys {
+		compatible = "mediatek,mt6359-keys";
+
+		power {
+			linux,keycodes = <KEY_POWER>;
+			wakeup-source;
+		};
+	};
+};
+
+&ssusb {
+	maximum-speed = "high-speed";
+	usb-role-switch;
+	vbus-supply = <&otg_vbus_regulator>;
+	vusb33-supply = <&mt6359_vusb_ldo_reg>;
+	status = "okay";
+
+	port {
+		mtu3_hs0_role_sw: endpoint {
+			remote-endpoint = <&typec_con_hs>;
+		};
+	};
+};
+
+&ufshci {
+	mediatek,ufs-disable-mcq;
+	mediatek,ufs-support-va09;
+
+	va09-supply = <&mt6359_va09_ldo_reg>;
+	vcc-supply = <&mt6359_vemc_ldo_reg>;
+	vccq2-supply = <&mt6359_vufs_ldo_reg>;
+
+	status = "okay";
+};
+
+&ufsphy {
+	status = "okay";
+};
+
+&xhci {
+	vusb33-supply = <&mt6359_vusb_ldo_reg>;
+	status = "okay";
+};
