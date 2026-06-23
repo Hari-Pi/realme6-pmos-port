@@ -184,16 +184,17 @@ After TWRP finishes, reboot. The kernel + initramfs take over from there.
 ### 1. `mt6785-realme-nemo.dts` is not in the upstream kernel tarball
 
 The kernel source is the `mt6785-mainline` fork at
-`https://gitlab.postmarketos.org/mt6785-mainline/linux/-/archive/6.16.4-r0/`. It
-contains `mt6785.dtsi` and `mt6785-xiaomi-begonia.dts` but **not** the Realme 6
-DTS. The kernel APKBUILD must:
+`https://gitlab.postmarketos.org/mt6785-mainline/linux/-/archive/6.16.4-r0/`.
+It contains `mt6785.dtsi` and `mt6785-xiaomi-begonia.dts` but not the Realme
+6 DTS. The kernel APKBUILD needs to:
 
-- Add `mt6785-realme-nemo.dts` to the `source=` list with its own sha512sum.
-- In `prepare()`, install it into `arch/arm64/boot/dts/mediatek/` and patch the
-  Makefile to add a `dtb-$(CONFIG_ARCH_MEDIATEK) += mt6785-realme-nemo.dtb` line.
+- Add `mt6785-realme-nemo.dts` to `source=` with a matching sha512sum.
+- In `prepare()`, install it into `arch/arm64/boot/dts/mediatek/` and patch
+  the Makefile to add `dtb-$(CONFIG_ARCH_MEDIATEK) += mt6785-realme-nemo.dtb`
+  after the `mt6785-xiaomi-begonia.dtb` line.
 
-Without this, the kernel build fails with `No rule to make target
-'arch/arm64/boot/dts/mediatek/mt6785-realme-nemo.dtb'`.
+If the DTS is missing from the source tree, the kernel build fails with
+`No rule to make target 'arch/arm64/boot/dts/mediatek/mt6785-realme-nemo.dtb'`.
 
 ### 2. AVB footer on `boot.img`
 
@@ -228,24 +229,26 @@ SXMO build had 76 chars without phosh's plymouth args, which works comfortably.
 If you switch to a non-phosh UI (e.g. sxmo) or strip plymouth, the cmdline is
 fine as-is.
 
-### 4. Empty DTBO is mandatory
+### 4. Empty DTBO is required
 
-`mkbootimg` on this device must be supplied with a `--recovery_dtbo` arg, even
-if the DTBO is empty. The device APKBUILD's `build()` step generates one:
+`mkbootimg` on this device needs a `--recovery_dtbo` arg, even when the DTBO
+is empty. The device APKBUILD's `build()` step generates one:
 
 ```sh
 echo '/dts-v1/;/{};' | dtc -I dts -O dtb -o "$builddir/empty.dtb"
 mkdtboimg create "$builddir/empty.dtbo" "$builddir/empty.dtb"
 ```
 
-Without this, the bootloader refuses to load `boot.img`.
+If the empty DTBO is missing, the bootloader refuses to load `boot.img`.
 
 ### 5. Recovery zip targets `userdata`, not `system`
 
-The Realme 6 has no `system` partition; storage uses Android's `super` (dynamic
-partitions). pmbootstrap's default is `system` — pass
-`--recovery-install-partition userdata` to fix. The flag is not exposed via
-`deviceinfo_*`; it has to be passed on the command line.
+The Realme 6 has no `system` partition; storage uses Android's `super`
+(dynamic partitions). pmbootstrap's default recovery target is `system`,
+which doesn't exist on this device. Pass
+`--recovery-install-partition userdata` to install to the correct partition.
+The flag isn't exposed via `deviceinfo_*`; it has to be passed on the
+command line.
 
 The historical working TWRP zips targeted `/dev/block/sdc51` (userdata). The
 pmbootstrap-generated installer's `pmos_install_part` script will find

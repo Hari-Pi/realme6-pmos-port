@@ -1,15 +1,19 @@
 # SSH access on the Realme 6
 
-After TWRP installs the recovery zip and the device reboots, you reach
-postmarketOS via USB. The catch: the device's IP is **172.16.42.1**, not
-`.2`. Most first-time setups ssh to the wrong host. This page explains the
-topology and the working command.
+After TWRP installs the recovery zip and the device reboots, postmarketOS is
+reachable over USB. The device presents an NCM (network control model) USB
+interface and runs a small DHCP server that assigns itself `172.16.42.1` and
+the host `172.16.42.2`. This page covers the network setup, the SSH command,
+and what to check if the connection doesn't go through.
+
+For the build pipeline itself, see [build.md](build.md).
+For the boot image verification procedure, see [verify.md](verify.md).
 
 ## 1. USB network topology
 
-postmarketOS's `usb-moded` switches into developer mode when it sees a host
-that's not a charger. In that mode the device exposes an NCM (network control
-model) USB interface as `ncm.usb0` and starts a tiny DHCP server
+postmarketOS's `usb-moded` switches the device into developer mode when it
+sees a host that's not a charger. In that mode the device exposes an NCM USB
+interface as `ncm.usb0` and starts a tiny DHCP server
 (`unudhcpd@usb0.service`). The server's hard-coded address range:
 
 ```
@@ -17,18 +21,12 @@ UNUDHCPD_SERVER=172.16.42.1   # the device
 UNUDHCPD_CLIENT=172.16.42.2   # the host (laptop)
 ```
 
-So:
-
-- **Device** (the Realme 6) is `172.16.42.1`.
-- **Host** (your laptop, the Fedora box you built on) is `172.16.42.2`.
-
-The reverse of what you might assume. This is encoded in
-`/usr/lib/systemd/system/unudhcpd@.service` and applies to every postmarketOS
-device in developer mode.
+The same scheme is used by every postmarketOS device in developer mode. The
+configuration is in `/usr/lib/systemd/system/unudhcpd@.service` on the device.
 
 On the host, the USB interface typically shows up as `enp<...>s<...>u<...>` (or
-just `usb0` if you have an old `cdc_ether` driver). After plugging the phone in
-with developer mode active, you should see something like:
+just `usb0` if you have an old `cdc_ether` driver). After plugging the phone
+in with developer mode active, the host should pick up `172.16.42.2`:
 
 ```bash
 $ ip -br addr
@@ -36,13 +34,13 @@ enp1s0u1u1  UP   172.16.42.2/24 ...
 ```
 
 If you don't see `172.16.42.2` on any interface, the device hasn't entered
-developer mode yet — re-plug the cable, or check that `usb-moded-developer-mode`
-came up on the device:
+developer mode yet. Things to check on the device (via touchscreen + a USB
+keyboard, or already-ssh'd):
 
 ```bash
-# on the device (via touchscreen + a USB keyboard, or already-ssh'd)
 systemctl status usb-moded-developer-mode
 systemctl status unudhcpd@usb0
+ip addr
 ```
 
 ## 2. The SSH command
@@ -51,8 +49,9 @@ systemctl status unudhcpd@usb0
 ssh user@172.16.42.1
 ```
 
-NOT `172.16.42.2` — that's your laptop, and Fedora's `sshd` is not running by
-default, so you'll get `ssh: connect to host 172.16.42.2 port 22: Connection refused`.
+`172.16.42.2` is the host. If `sshd` is not running on the host, that
+address returns `Connection refused`. Connecting to `.1` (the device) is the
+path that works.
 
 Login:
 
@@ -63,11 +62,11 @@ Login:
 If you forget the password, rebuild the recovery zip with a new one — there's
 no in-place way to reset the `user` account without a chroot.
 
-## 3. What's actually serving SSH
+## 3. What serves SSH on the device
 
-The chroot installs `openssh-server-pam` (Alpine package), whose only binary is
-`/usr/sbin/sshd.pam`. The `sshd.service` unit's `ExecStart=/usr/sbin/sshd.pam -D`
-points at it. Configuration:
+The chroot installs `openssh-server-pam` (Alpine package), whose only binary
+is `/usr/sbin/sshd.pam`. The `sshd.service` unit's `ExecStart=/usr/sbin/sshd.pam
+-D` points at it. Configuration:
 
 - `Port 22` (default; nothing overrides it).
 - `ListenAddress 0.0.0.0` (default).
@@ -77,13 +76,12 @@ points at it. Configuration:
 - `AllowTcpForwarding no` (set by the upstream config — useful to know if you
   intend to tunnel).
 
-`sshd` generates its host keys on first start if they're missing. Don't be
-alarmed if `/etc/ssh/` looks empty in the chroot — the keys appear on first
-boot.
+`sshd` generates its host keys on first start if they're missing. An empty
+`/etc/ssh/` in the chroot is normal; the keys appear on first boot.
 
-The `nftables` firewall is **disabled** by pmbootstrap's
-`80-pmbootstrap-install-disable-nftables.preset`, so port 22 is wide open from
-the USB interface.
+The `nftables` firewall is disabled by pmbootstrap's
+`80-pmbootstrap-install-disable-nftables.preset`, so port 22 is reachable
+from the USB interface.
 
 ## 4. Switching to key-based auth
 
@@ -101,8 +99,7 @@ EOF
 chmod 600 ~/.ssh/authorized_keys
 ```
 
-On the host, in `~/.ssh/config` you can add an entry so you don't have to type
-the IP every time:
+On the host, an entry in `~/.ssh/config` saves the IP:
 
 ```
 Host nemo
@@ -111,24 +108,21 @@ Host nemo
     PreferredAuthentications publickey,password
 ```
 
-Then `ssh nemo` works from anywhere on the host.
+`ssh nemo` then works from anywhere on the host.
 
-## 5. Common gotchas
+## 5. Troubleshooting
 
-- **"Connection refused" on `172.16.42.1`**: sshd hasn't started yet, or the
-  device hasn't entered developer mode. Check on the device
-  (`systemctl status sshd`, `systemctl status usb-moded-developer-mode`,
-  `ip addr`).
+- **`Connection refused` on `172.16.42.1`** — sshd hasn't started, or the
+  device hasn't entered developer mode. On the device, check `systemctl
+  status sshd`, `systemctl status usb-moded-developer-mode`, and `ip addr`.
 
-- **"No route to host" on `172.16.42.1`**: the USB interface on the host is
-  down, or the device never brought up `usb0`. Re-plug the cable. The host's
-  `usb0` (or similar) should have `172.16.42.2` once the device's DHCP server
-  hands it out.
+- **`No route to host` on `172.16.42.1`** — the host's USB interface is down
+  or the device never brought up `usb0`. Re-plug the cable; the host's
+  `usb0` (or similar) should get `172.16.42.2` from the device's DHCP.
 
-- **"Connection refused" on `172.16.42.2`**: you're sshing at the wrong host.
-  See section 1. Try `.1` instead.
+- **`Connection refused` on `172.16.42.2`** — `.2` is the host, not the
+  device. Connect to `.1` instead (see section 1).
 
-- **Wrong password**: the password baked into the chroot's `/etc/shadow` is
-  whatever you passed to `pmbootstrap install --password`. The `--password` flag
-  is what writes `/etc/shadow` for the `user` entry. Build again with a
-  different password if you lost it.
+- **Wrong password** — the chroot's `/etc/shadow` password is whatever was
+  passed to `pmbootstrap install --password`. Rebuild with a different
+  `--password` if it's lost.
