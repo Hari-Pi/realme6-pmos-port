@@ -3,7 +3,7 @@
 _flavor="realme-nemo"
 pkgname=linux-$_flavor
 pkgver=6.16.4
-pkgrel=0
+pkgrel=1
 pkgdesc="Mainline kernel for Realme 6 (nemo) based on MT6785 mainline fork"
 arch="aarch64"
 _carch="arm64"
@@ -11,16 +11,22 @@ url="https://gitlab.postmarketos.org/mt6785-mainline/linux"
 license="GPL-2.0-only"
 options="!strip !check !tracedeps
 	pmb:cross-native
-	pmb:kconfigcheck-community
 "
 makedepends="
 	bash
+	bc
 	bison
 	findutils
 	flex
+	kmod
+	linux-headers
+	elfutils-dev
 	openssl-dev
+	pahole
 	perl
 	postmarketos-installkernel
+	python3
+	zstd
 "
 
 _tag="$pkgver-r0"
@@ -28,19 +34,21 @@ _config="config-$_flavor.$arch"
 source="
 	https://gitlab.postmarketos.org/mt6785-mainline/linux/-/archive/$_tag/linux-$_tag.tar.gz
 	$_config
+	mt6785-realme-nemo.dts
 "
 builddir="$srcdir/linux-$_tag"
 
 prepare() {
 	default_prepare
 	cp "$srcdir/$_config" .config
-	# DTS is already in the kernel source tree at:
-	# arch/arm64/boot/dts/mediatek/mt6785-realme-nemo.dts
-	# Make sure it's included in the Makefile
+	install -Dm644 "$srcdir/mt6785-realme-nemo.dts" \
+		arch/arm64/boot/dts/mediatek/mt6785-realme-nemo.dts
+	# The pinned MT6785 archive does not include the Realme board DTS.
 	if ! grep -q 'mt6785-realme-nemo.dtb' arch/arm64/boot/dts/mediatek/Makefile; then
 		sed -i '/mt6785-xiaomi-begonia.dtb/a dtb-$(CONFIG_ARCH_MEDIATEK) += mt6785-realme-nemo.dtb' \
 			arch/arm64/boot/dts/mediatek/Makefile
 	fi
+	make ARCH="$_carch" CC="${CC:-gcc}" olddefconfig
 }
 
 build() {
@@ -66,5 +74,6 @@ package() {
 
 sha512sums="
 d65e1b9fb3950b6535bbe8b901809f2ff790f52adadb3f0a6e1bb48c0b39949ef49e08bd9e5ba9f5f632a0ad1cd18abba5d8316d33ad1ebc887fce59a0a94489  linux-6.16.4-r0.tar.gz
-23e93d2b92c498d565b3669f9d57d91fbd9267b262f071fad6cab288f2e8cdffe189a0a66072d69b299ca44edeb1d55d37ec2baea16c2238736e23f6b6855a40  config-realme-nemo.aarch64
+25547e52333251763f072db3324d647a7a570fcb62c343e3e6484e8f3f0791e14f0ff30743333f21f4b135a39980eede9180f12d9c3adc3b224c9bdd40c8ed25  config-realme-nemo.aarch64
+b2c2c1857b6f0699f8de8e8a7ea228c6e09696b8bac964fc7a19f48c1ead56e6f596b641a78251f5b12255b4b4108c4f6904e135ba3a756bf5c4c3ef610493af  mt6785-realme-nemo.dts
 "

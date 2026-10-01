@@ -1,5 +1,9 @@
 # postmarketOS Realme 6 build — final report
 
+> Historical report from the previous build. Some conclusions about AVB,
+> DTB addresses and recovery filesystems were corrected in `docs/audit.md`.
+> Use `scripts/build-recovery.py` and the new artifact's verification report.
+
 ## What was built
 - `pmbootstrap` 3.10.1 (cloned into `pmaports-tmp/pmbootstrap`, symlinked at `~/.local/bin/pmbootstrap`).
 - `pmaports` shallow clone at `pmaports-tmp/aports`, with `device-realme-nemo/` and `linux-realme-nemo/` overlaid.

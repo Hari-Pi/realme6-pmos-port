@@ -3,19 +3,19 @@
 pkgname=device-realme-nemo
 pkgdesc="Realme 6 (RMX2001)"
 pkgver=2
-pkgrel=0
+pkgrel=1
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
 options="!check !archcheck"
 depends="
-	android-tools
+	android-tools-avbtool
+	android-tools-mkbootimg
 	linux-realme-nemo
-	mkbootimg
 	postmarketos-base
 "
-makedepends="android-tools devicepkg-dev dtc"
-source="deviceinfo kernel-cmdline.conf modules-initfs"
+makedepends="android-tools-mkdtboimg devicepkg-dev dtc"
+source="deviceinfo kernel-cmdline.conf modules-initfs finalize-bootimg.sh"
 
 build() {
 	devicepkg_build $startdir $pkgname
@@ -32,10 +32,13 @@ package() {
 	mkdir -p "$pkgdir/boot"
 	install -Dm644 "$builddir/empty.dtbo" \
 		"$pkgdir/boot/"
+	install -Dm755 "$srcdir/finalize-bootimg.sh" \
+		"$pkgdir/usr/share/$pkgname/finalize-bootimg.sh"
 }
 
 sha512sums="
-15cddd69a1373309909052c41ab2a64cc23c6fb65cf0990081bbcddf880dc9ac7e975e2f1eea6ed4b093050e19be4b625aaf99365b0e10f3b271348abeffb374  deviceinfo
-45bd9a0cfabacb7824232c92d6d2d0759d7e83d92b8b3e9cb608f738a1966c1fce2bbf5179293a5039f45c8613ac9836cb10eb07b0847f9b362ee0c06e7ecdbe  kernel-cmdline.conf
+cf316694a9a6bc3e1641813f1a5affd375fde5476007f36313631f6824623cfe5fbf1373b74766d5e744841282af702fed5f48c02cd94d5b95b41ddc02317fc1  deviceinfo
+605c856ca50cc103796ee3607386ac3d8d9623ab13c43742eed01528e71e896687326f22d04f7197f012fdfed0c5d18524bad1f09916ead56692197c3c5e6951  kernel-cmdline.conf
 ce944d3091079ab870faaccbaf136f5b9ca6ce25ac1eceea41ed4084ff7eda65e22cb2d670ec2f4f8a3edd427ba620a78f6d7525665ae4f3dc75703abdee133b  modules-initfs
+e3970a657f3c83c3ea8c8ac53f88dbeea001837bd48aff35db99915882d2b19445e8d0d3181563ffd3d5fe548fc8a68172bacee9ef59367d46b7d7ac96914636  finalize-bootimg.sh
 "

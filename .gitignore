@@ -3,6 +3,15 @@
 pmaports-tmp/work/
 pmaports-tmp/aports/
 pmaports-tmp/pmbootstrap/
+pmaports-tmp/mkinitfs/
+pmaports-tmp/boot-deploy/
+pmaports-tmp/recovery-installer/
+pmaports-tmp/pmbootstrap.cfg
+pmaports-tmp/build-dashboard/
+dist/
+__pycache__/
 # Binary build outputs in notes/
 pmaports-tmp/notes/*.img
 pmaports-tmp/notes/*.zip
+# Local hardware captures can contain large binaries and noisy recovery logs.
+diagnostics/

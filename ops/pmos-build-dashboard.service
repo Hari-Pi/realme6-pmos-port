@@ -1,0 +1,15 @@
+[Unit]
+Description=Realme 6 postmarketOS build dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/realme6-pmos/port
+Environment=PMOS_DASHBOARD_HOST=0.0.0.0
+Environment=PMOS_DASHBOARD_PORT=8765
+ExecStart=/usr/bin/python3 /opt/realme6-pmos/port/scripts/build-dashboard.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

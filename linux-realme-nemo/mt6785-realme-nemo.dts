@@ -71,6 +71,24 @@
 	proc-supply = <&mt6359_vproc1_buck_reg>;
 };
 
+/*
+ * The Mali GPU is split across the MFG and MFG_ASYNC power domains.  Both
+ * domains need their SRAM/core supplies before the GPU can probe.  This is
+ * the same wiring used by the upstream MT6785 (begonia) device tree.
+ */
+&gpu {
+	mali-supply = <&mt6359_vgpu11_buck_reg>;
+	status = "okay";
+};
+
+&mfg {
+	domain-supply = <&mt6359_vpu_buck_reg>;
+};
+
+&mfg_async {
+	domain-supply = <&mt6359_vgpu11_buck_reg>;
+};
+
 &keypad {
 	linux,keymap = <MATRIX_KEY(0x00, 0x00, KEY_VOLUMEUP)
 			MATRIX_KEY(0x00, 0x01, KEY_VOLUMEDOWN)>;

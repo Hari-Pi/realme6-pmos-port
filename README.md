@@ -1,79 +1,74 @@
-# postmarketOS Port for Realme 6 (RMX2001 / nemo)
+# postmarketOS for Realme 6 (RMX2001 / nemo)
 
-postmarketOS port for the Realme 6 (`realme-nemo`), a MediaTek Helio G90T
-(MT6785) device. This repo contains the pmaports packages
-(`device-realme-nemo`, `linux-realme-nemo`) and the documentation for the
-build pipeline.
+This repository builds a self-contained recovery installer for the Realme 6.
+It contains the MT6785 kernel package, initramfs and postmarketOS rootfs.
 
-## Current Status
+## Current hardware status
 
-- **Kernel**: Mainline 6.16.4 based on the `mt6785-mainline` fork.
-- **Boot**: Boots the mainline kernel to the initramfs and to a working
-  SSH login on USB (see [docs/ssh.md](docs/ssh.md)).
-- **GUI**: Phosh is installed but the display panel driver is not yet
-  ported. A previous attempt at a panel patch broke the build and was
-  reverted; this repo is the working baseline.
-- **Install method**: TWRP recovery zip; flash the zip from TWRP on the
-  device's `userdata` partition.
+The OpenRC + Phosh root filesystem was installed from recovery and reached
+userspace on real hardware on 2026-10-01 when paired with the known-good
+downstream 4.14 hybrid boot image. NetworkManager joined Wi-Fi, the phone
+appeared as a USB-NCM device, and SSH became reachable over Wi-Fi.
 
-## Documentation
+The repository's mainline 6.16 kernel remains a separate, experimental target.
+Display and touch are not implemented in its board device tree. The downstream
+kernel can display Phosh without the earlier framebuffer flashing, but touch
+and the graphical session still require validation. See the
+[bring-up ledger](docs/bringup.md) for exact artifacts, results, and next steps.
 
-- [docs/build.md](docs/build.md) — full pmbootstrap build and install
-  procedure, plus a list of device quirks and how the device and kernel
-  packages are configured.
-- [docs/verify.md](docs/verify.md) — boot image structure, inspection
-  commands, AVB padding procedure, and a reference-image diff.
-- [docs/ssh.md](docs/ssh.md) — USB networking topology and SSH access on
-  the booted device.
+## Build on Linux
 
-## Quick start
-
-```bash
-# 1. Clone pmbootstrap and pmaports into pmaports-tmp/
-mkdir -p pmaports-tmp
-git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git pmaports-tmp/pmbootstrap
-ln -sfn "$PWD/pmaports-tmp/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
-export PATH="$HOME/.local/bin:$PATH"
-
-git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git pmaports-tmp/aports
-cp -a device-realme-nemo  pmaports-tmp/aports/device/testing/device-realme-nemo
-cp -a linux-realme-nemo   pmaports-tmp/aports/device/testing/linux-realme-nemo
-
-# 2. Init pmbootstrap (one-time)
-pmbootstrap config work  "$PWD/pmaports-tmp/work"
-pmbootstrap config aports "$PWD/pmaports-tmp/aports"
-pmbootstrap config device realme-nemo
-pmbootstrap config kernel realme-nemo
-pmbootstrap config ui phosh
-mkdir -p pmaports-tmp/work && printf '8\n' > pmaports-tmp/work/version
-
-# 3. Build
-pmbootstrap -p "$PWD/pmaports-tmp/aports" -w "$PWD/pmaports-tmp/work" build linux-realme-nemo
-pmbootstrap -p "$PWD/pmaports-tmp/aports" -w "$PWD/pmaports-tmp/work" build device-realme-nemo
-
-# 4. Produce the TWRP-flashable recovery zip
-pmbootstrap -p "$PWD/pmaports-tmp/aports" -w "$PWD/pmaports-tmp/work" \
-    install --android-recovery-zip \
-    --no-firewall \
-    --recovery-install-partition userdata \
-    --password 1234
+```sh
+git clone https://github.com/Hari-Pi/realme6-pmos-port.git
+cd realme6-pmos-port
+python3 scripts/build-recovery.py
 ```
 
-The output zip lands in
-`pmaports-tmp/work/chroot_buildroot_aarch64/var/lib/postmarketos-android-recovery-installer/pmos-realme-nemo.zip`.
-Copy it to the device, reboot into TWRP, and install.
+The tool prompts for the image's login password and produces:
 
-## Repository layout
+- `dist/pmos-realme-nemo.zip` — recovery installer
+- `dist/verification.json` — archive, boot header, DTB and AVB checks
+- `dist/SHA256SUMS` — transfer checksum
+- `dist/build.lock.json` — source revisions
+- `dist/build-manifest.json` — package input checksums and image configuration
 
-```
-.
-├── device-realme-nemo/   # pmaports device package
-├── linux-realme-nemo/    # pmaports kernel package
-├── docs/                 # build, verify, ssh
-├── pmaports-tmp/         # pmbootstrap work dir, builds, recovery zip (gitignored)
-└── README.md
-```
+For unattended builds, supply `PMOS_PASSWORD` in the build environment. Passwords
+may appear in pmbootstrap's local logs, so keep the work directory private.
+An optional `--ssh-key /path/to/id_ed25519.pub` embeds your **public** key.
+`--setup-only` verifies the setup and package sources without compiling;
+`--jobs 12` limits build parallelism. `--ui phosh` selects the graphical
+userspace; it does not add a panel driver to the mainline kernel.
 
-`pmaports-tmp/work/` (chroots, build cache, packages) and the binary outputs in
-`pmaports-tmp/notes/` (`*.img`, `*.zip`) are gitignored. The metadata in
-`pmaports-tmp/notes/` (REPORT.md, verify script, diff) is tracked.
+## Install from recovery
+
+**Installing this zip erases the phone's userdata, including the existing
+Droidian/Android rootfs, and replaces boot.** Save boot, recovery, userdata and
+personal-file backups off the phone first. The bootloader must be unlocked,
+with verification disabled as in the working port; an unsigned AVB footer is
+not a substitute for unlocking or disabling verification.
+
+Copy the zip to a microSD card or use TWRP's ADB sideload. Do not keep the only
+copy on internal `/data`, because the installer repartitions it. In TWRP,
+unmount data, install the zip, then reboot to system. Recovery itself is not
+replaced. A mainline image may have a black display; test USB SSH.
+
+See [build](docs/build.md), [verification](docs/verify.md),
+[USB SSH](docs/ssh.md), [hardware bring-up](docs/bringup.md), and the
+[documentation audit](docs/audit.md).
+
+## Sources
+
+`device-realme-nemo/` and `linux-realme-nemo/` are the authoritative pmaports
+overlays. The helper pins pmbootstrap and pmaports using `build.lock.json`, then
+copies these packages into its own ignored `pmaports-tmp/aports` checkout.
+Linux source is pinned to the checksum-verified MT6785 `6.16.4-r0` archive.
+Alpine/postmarketOS binary repositories are rolling: these pins record source
+inputs, but do not promise byte-for-byte reproducible images over time.
+
+The working [Droidian reference](https://github.com/Hari-Pi/kernel_realme_RMX2001)
+supplies boot-layout facts and downstream hardware reference code. Its 4.14
+kernel, Halium initramfs and adaptation `.deb` are not dependencies of this
+mainline postmarketOS image.
+
+`pmaports-tmp/notes/` preserves historical reports; use the new build helper and
+verification report for current artifacts.

@@ -1,272 +1,125 @@
-# Building postmarketOS for the Realme 6 (nemo)
+# Recovery build
 
-This is the working build flow as of this repo. It uses `pmbootstrap` to produce a
-TWRP-flashable recovery zip. Everything is reproducible from this repo + a Linux host.
+## Host
 
-For the boot image verification procedure, see [verify.md](verify.md).
-For SSH access on the booted device, see [ssh.md](ssh.md).
+Use Linux with Python 3.10+, git, openssl, sudo, mount, losetup and kpartx.
+pmbootstrap builds Alpine chroots; don't run it directly on macOS.
+Ubuntu WSL2 on the rig is our current build host. WSL is not officially
+supported by pmbootstrap, so a normal Linux host is the fallback if chroot,
+loop-device or emulation support fails.
 
-## 1. Host prerequisites
-
-- Linux (x86_64, aarch64, armv7), kernel 3.17+
-- Python 3.10+
-- `git`, `openssl`, `tar`, `ps`, `sudo` (or doas)
-- Network access to `gitlab.postmarketos.org`, `gitlab.com`, and `dl-cdn.alpinelinux.org`
-- For verification: `avbtool`, `mkbootimg`, `unpack_bootimg`, `dtc` (Alpine package
-  `android-tools` and `dtc`)
-
-The first build downloads ~250 MB of Alpine packages and ~1 GB of kernel source
-(plus all `pmaports` build deps). A full cold build of `linux-realme-nemo` takes
-~10–15 min on a recent x86_64 host; `device-realme-nemo` is trivial.
-
-## 2. Layout
-
-The build artifacts live in `pmaports-tmp/` next to this repo's tracked files:
-
-```
-realme6-pmos-port/
-├── device-realme-nemo/        # tracked device pkg (pmaports-format)
-├── linux-realme-nemo/         # tracked kernel pkg (pmaports-format)
-├── docs/
-│   ├── build.md               # this file
-│   ├── verify.md              # boot image verification
-│   └── ssh.md                 # SSH access on the device
-├── pmaports-tmp/
-│   ├── pmbootstrap/           # shallow clone of gitlab.postmarketos.org/postmarketOS/pmbootstrap
-│   ├── aports/                # shallow clone of gitlab.postmarketos.org/postmarketOS/pmaports,
-│   │                          #   with our device/ and linux/ packages overlaid
-│   ├── work/                  # pmbootstrap's work dir (chroots, packages, cache) — gitignored
-│   └── notes/                 # build outputs, verification, REPORT.md — .img/.zip gitignored
-├── .gitignore
-└── README.md
-```
-
-`pmaports-tmp/work/` and the binary outputs in `pmaports-tmp/notes/` are gitignored
-(see `.gitignore`). The metadata in `pmaports-tmp/notes/` (REPORT, verify script,
-diff, verify report) is tracked.
-
-## 3. Set up pmbootstrap
-
-```bash
-cd /path/to/realme6-pmos-port
-mkdir -p pmaports-tmp
-git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git pmaports-tmp/pmbootstrap
-ln -sfn "$PWD/pmaports-tmp/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
-export PATH="$HOME/.local/bin:$PATH"
-pmbootstrap --version    # 3.10.1+
-```
-
-`pmbootstrap` lives in the temp folder and is *not* tracked. The symlink at
-`~/.local/bin/pmbootstrap` is outside the repo.
-
-## 4. Set up local pmaports
-
-```bash
-git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git pmaports-tmp/aports
-cp -a device-realme-nemo  pmaports-tmp/aports/device/testing/device-realme-nemo
-cp -a linux-realme-nemo   pmaports-tmp/aports/device/testing/linux-realme-nemo
-```
-
-The two tracked packages are overlays on top of the upstream `pmaports` tree.
-They are not `git submodule`s — they're just plain `cp -a` copies that happen to
-sit inside the aports tree.
-
-## 5. Init pmbootstrap
-
-Either run the wizard non-interactively, or write the config directly:
-
-```bash
-pmbootstrap config work  "$PWD/pmaports-tmp/work"
-pmbootstrap config aports "$PWD/pmaports-tmp/aports"
-pmbootstrap config device realme-nemo
-pmbootstrap config kernel realme-nemo
-pmbootstrap config ui phosh
-# Optional: pre-select extra pkgs (none for now)
-pmbootstrap config extra_packages ""
-```
-
-Then prime the work dir's version file (pmbootstrap 3.10.x refuses to start in an
-empty work dir without it):
-
-```bash
-mkdir -p pmaports-tmp/work
-printf '8\n' > pmaports-tmp/work/version
-```
-
-Verify:
-
-```bash
-pmbootstrap -p "$PWD/pmaports-tmp/aports" -w "$PWD/pmaports-tmp/work" status
-# Channel: systemd-edge (pmaports: main, dirty)
-# Device:  realme-nemo (aarch64)
-# UI:      phosh
-# systemd: yes
-```
-
-The `dirty` marker is expected — our overlaid packages are not committed in the
-`pmaports` clone.
-
-## 6. Build the kernel and device packages
-
-```bash
-pmbootstrap -p "$PWD/pmaports-tmp/aports" -w "$PWD/pmaports-tmp/work" \
-    build linux-realme-nemo
-
-pmbootstrap -p "$PWD/pmaports-tmp/aports" -w "$PWD/pmaports-tmp/work" \
-    build device-realme-nemo
-```
-
-`pmbootstrap build linux-realme-nemo` is the long step (~10–15 min cold; seconds
-warm thanks to ccache). It cross-compiles the kernel for aarch64 with
-`aarch64-alpine-linux-musl-gcc`.
-
-`pmbootstrap build device-realme-nemo` is fast — it runs `devicepkg_build` plus
-the `dtc` + `mkdtboimg create empty.dtbo` step (see quirk #4 below).
-
-`pmbootstrap kconfig check linux-realme-nemo` will fail with ~100 warnings — those
-are the `community` category kconfig requirements (hardening, filesystems,
-netmount, etc.). They are *not* build blockers, only CI/promotion blockers. The
-device currently lives in the `testing` category; fixing them is a prerequisite
-for promoting to `community`.
-
-## 7. Generate the TWRP-flashable recovery zip
-
-```bash
-pmbootstrap -p "$PWD/pmaports-tmp/aports" -w "$PWD/pmaports-tmp/work" \
-    install --android-recovery-zip \
-    --no-firewall \
-    --recovery-install-partition userdata \
-    --password 1234
-```
-
-Flags explained:
-
-- `--android-recovery-zip` — produce a TWRP-flashable zip instead of a raw image.
-- `--no-firewall` — drop the phosh default nftables rules (port 22 etc).
-- `--recovery-install-partition userdata` — **required**, see quirk #5. The
-  Realme 6 has no `system` partition (uses `super` / dynamic partitions), so the
-  recovery installer must target `userdata`.
-- `--password 1234` — sets the `user` account password baked into the chroot's
-  `/etc/shadow`. Replace with anything you like (kept secret — it lands in
-  pmbootstrap's log).
-
-The output zip lands at:
-
-```
-pmaports-tmp/work/chroot_buildroot_aarch64/var/lib/postmarketos-android-recovery-installer/pmos-realme-nemo.zip
-```
-
-The produced `boot.img` is at:
-
-```
-pmaports-tmp/work/chroot_rootfs_realme-nemo/boot/boot.img
-```
-
-(Copies of both are also in `pmaports-tmp/notes/`, minus the binary artifacts
-which are gitignored.)
-
-## 8. Flash
-
-Copy `pmos-realme-nemo.zip` to the device, reboot into TWRP, and install the zip.
-TWRP runs the bundled `pmos_install` script which:
-
-1. Reads `chroot/install_options` (the file pmbootstrap embeds with our partition
-   choice).
-2. Creates an MBR on `userdata` with a small `pmOS_boot` (vfat) and a large
-   `pmOS_root` (f2fs).
-3. Extracts the rootfs tarball into `pmOS_root`.
-4. Flashes the bundled `boot.img` to the boot partition.
-
-After TWRP finishes, reboot. The kernel + initramfs take over from there.
-
-## Device quirks (why the device pkg and kernel pkg look the way they do)
-
-### 1. `mt6785-realme-nemo.dts` is not in the upstream kernel tarball
-
-The kernel source is the `mt6785-mainline` fork at
-`https://gitlab.postmarketos.org/mt6785-mainline/linux/-/archive/6.16.4-r0/`.
-It contains `mt6785.dtsi` and `mt6785-xiaomi-begonia.dts` but not the Realme
-6 DTS. The kernel APKBUILD needs to:
-
-- Add `mt6785-realme-nemo.dts` to `source=` with a matching sha512sum.
-- In `prepare()`, install it into `arch/arm64/boot/dts/mediatek/` and patch
-  the Makefile to add `dtb-$(CONFIG_ARCH_MEDIATEK) += mt6785-realme-nemo.dtb`
-  after the `mt6785-xiaomi-begonia.dtb` line.
-
-If the DTS is missing from the source tree, the kernel build fails with
-`No rule to make target 'arch/arm64/boot/dts/mediatek/mt6785-realme-nemo.dtb'`.
-
-### 2. AVB footer on `boot.img`
-
-The MediaTek LK bootloader on this device requires an AVB hash footer on
-`boot.img`. The flash partition is exactly 32 MiB
-(`33554432` bytes). pmbootstrap's `mkbootimg` does not add this automatically; we
-add it as a post-step:
-
-```bash
-avbtool add_hash_footer \
-  --image boot.img \
-  --partition_name boot \
-  --partition_size 33554432 \
-  --algorithm NONE \
-  --salt $(openssl rand -hex 32)
-```
-
-Algorithm `NONE` is enough — the stock ROM's `vbmeta.img` already has verification
-disabled (`Flags: 3`). The TWRP recovery zip path also works without AVB padding
-because TWRP itself writes to the partition; you only need AVB padding for
-direct fastboot / dd flashing. See [verify.md](verify.md) for the full procedure.
-
-### 3. Kernel cmdline length
-
-The MediaTek LK bootloader panics with `cmdline overflow` if the kernel command
-line is > ~93 chars. pmbootstrap's phosh base adds
-`quiet splash plymouth.ignore-serial-consoles plymouth.prefer-fbcon` (~52 chars)
-to the distro's default cmdline. Our device's `kernel-cmdline.conf` has 76 chars
-of its own plus the disto's additions, which is right at the limit. The original
-SXMO build had 76 chars without phosh's plymouth args, which works comfortably.
-
-If you switch to a non-phosh UI (e.g. sxmo) or strip plymouth, the cmdline is
-fine as-is.
-
-### 4. Empty DTBO is required
-
-`mkbootimg` on this device needs a `--recovery_dtbo` arg, even when the DTBO
-is empty. The device APKBUILD's `build()` step generates one:
+On recent Ubuntu:
 
 ```sh
-echo '/dts-v1/;/{};' | dtc -I dts -O dtb -o "$builddir/empty.dtb"
-mkdtboimg create "$builddir/empty.dtbo" "$builddir/empty.dtb"
+sudo apt-get update
+sudo apt-get install git python3 openssl sudo kpartx binfmt-support qemu-user-binfmt
 ```
 
-If the empty DTBO is missing, the bootloader refuses to load `boot.img`.
+Some older distributions call the emulation package `qemu-user-static`.
+pmbootstrap also installs/checks its own binfmt handlers. The build host needs
+network access to GitLab, Alpine and postmarketOS mirrors and several GB of
+disk space. Prefer the Linux filesystem under WSL, not `/mnt/c` or `/mnt/d`.
 
-### 5. Recovery zip targets `userdata`, not `system`
+## One command
 
-The Realme 6 has no `system` partition; storage uses Android's `super`
-(dynamic partitions). pmbootstrap's default recovery target is `system`,
-which doesn't exist on this device. Pass
-`--recovery-install-partition userdata` to install to the correct partition.
-The flag isn't exposed via `deviceinfo_*`; it has to be passed on the
-command line.
+```sh
+python3 scripts/build-recovery.py --jobs 12
+```
 
-The historical working TWRP zips targeted `/dev/block/sdc51` (userdata). The
-pmbootstrap-generated installer's `pmos_install_part` script will find
-`userdata` automatically given this option.
+## Live build monitor
 
-### 6. `deviceinfo_flash_method=fastboot` (not used here)
+Enable the read-only dashboard on the rig once:
 
-`deviceinfo` says `flash_method=fastboot` because the original porting effort
-planned to use `pmbootstrap flasher`. We're not using fastboot at all — the TWRP
-path is what works. The `flash_method` field is irrelevant for
-`--android-recovery-zip` and can be ignored.
+```sh
+sudo install -m 644 ops/pmos-build-dashboard.service \
+    /etc/systemd/system/pmos-build-dashboard.service
+sudo systemctl enable --now pmos-build-dashboard.service
+```
 
-## Verification
+Open `http://rig:8765` from the Mac on the same network or tailnet. The server
+reads the build helper's `pmaports-tmp/build-dashboard/build.log` and status
+file, then refreshes the browser view while a build runs. A build started with
+`build-recovery.py` replaces those latest-run files and captures its output and
+start/end status automatically. Progress while compiling is an estimate based
+on compiler output; completion and failure are reported from the build result.
+Every successful recovery package is also copied to `dist/builds/<timestamp>/`
+with its verification report, manifest, source lock and checksum. The dashboard
+lists these builds newest first and serves the selected ZIP for download.
+ZIP responses include a stable timestamped filename, `Content-Length`, and HTTP
+byte-range support, so browser downloads and resumable CLI clients such as
+`aria2c` can use the same link. Right-click the dashboard's **Download ZIP**
+link to copy its direct URL.
+The page is read-only and is intended for access over the trusted home LAN or
+Tailscale network.
 
-See [verify.md](verify.md) for the full procedure: header checks, AVB inspection,
-DTB / `recovery_dtbo` comparison against the known-good reference.
+The helper uses an isolated config, work directory and upstream checkouts under
+`pmaports-tmp/`; it does not change your global pmbootstrap configuration. Normal
+users need sudo. A dedicated root-owned WSL build directory uses pmbootstrap's
+explicit `--as-root` option, keeping root-owned files away from other projects.
+The current rig checkout is `/opt/realme6-pmos/port`.
 
-The provided script `pmaports-tmp/notes/verify_bootimg.py` automates the diff
-against a reference image. It expects a reference at
-`/home/dazai/Projects/working/boot-fixed.img`; point it elsewhere if you keep
-your own reference.
+The build selects edge + OpenRC by default, device `realme-nemo`, kernel `realme-nemo`,
+console UI, hostname `realme-nemo`, and login `user`. It explicitly installs
+the USB mode manager and developer profile so networking does not rely on
+Phosh pulling those packages in. It verifies package source checksums,
+builds the kernel and device APKs, and runs:
+
+```sh
+pmbootstrap -c pmaports-tmp/pmbootstrap.cfg install \
+    --android-recovery-zip --recovery-install-partition userdata --no-firewall
+```
+
+The helper handles `--as-root` when applicable. It deliberately enables SSH and
+disables the image firewall for USB bring-up. Revisit firewall policy before
+exposing network services beyond the development connection.
+
+OpenRC is intentional for the downstream vendor kernel. Current systemd 262
+requires a Linux 5.14 baseline and no longer supports the legacy cgroup-v1
+configuration used by this 4.14 kernel. A systemd image remains available for
+mainline-kernel testing with `--service-manager systemd`.
+
+The recovery installer excludes `/home` and recreates it from `/etc/skel`.
+pmbootstrap's native key-copy code applies to disk images, not recovery zips.
+`--ssh-key` therefore seeds `/etc/skel/.ssh/authorized_keys` before the install,
+then checks the key inside the archive. Only a public key is accepted.
+
+## Boot image generation
+
+The device package generates an empty recovery DTBO and installs its board
+settings and command-line fragment. The kernel package explicitly installs
+the local Realme DTS, then enables its DTB in the MediaTek Makefile.
+
+boot-deploy generates a header-v2 image with the Droidian-validated absolute
+kernel/ramdisk/tags/DTB load addresses, Android 10.0.0 and patch level 2021-08.
+The supported `deviceinfo_mkinitfs_postprocess` hook adds an AVB hash footer
+for the 33,554,432-byte boot partition **before** rootfs tar/zip creation or
+kernel updates. The image therefore carries its footer inside the recovery zip.
+
+The console build removes quiet/splash/Plymouth parameters, keeping the
+historically reported command-line budget below 93 characters. The verifier
+checks the final generated command line, including boot-deploy additions.
+That historical budget is a conservative check, not a proven universal LK limit.
+The Android-only `androidboot.serialconsole=0` is omitted, matching the shorter
+historical mainline reference and leaving room for `pmos_rootfsopts=defaults`.
+
+## What recovery does
+
+The pinned recovery-installer package resolves `PARTLABEL=userdata` and
+`PARTLABEL=boot`, with recovery-fstab fallback. It writes an MBR **inside the
+userdata partition**, a roughly 256 MB ext2 `pmOS_boot` subpartition and an ext4
+`pmOS_root` subpartition. It maps them using kpartx, extracts the rootfs, creates
+the user home from `/etc/skel`, then writes `/boot/boot.img` to boot.
+
+This replaces all contents of userdata. The top-level Android partition table,
+recovery, super and vendor are not install targets. No `/dev/block/sdcNN` paths
+are hard-coded. The UFS image sector size is 4096 in deviceinfo; the recovery
+installer probes the actual target through parted/kpartx.
+
+## Maintenance
+
+Edit the top-level packages, not only copies in `pmaports-tmp/aports`. Regenerate
+checksums with `pmbootstrap checksum` against the isolated configuration after
+changing package sources and propagate those updates to the top-level APKBUILD.
+Advance the source lock deliberately; the helper refuses to change revisions
+of a modified upstream checkout. Kernel config promotion requirements and
+display/touch work are separate from recovery-image bring-up.

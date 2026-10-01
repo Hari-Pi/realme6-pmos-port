@@ -1,0 +1,7 @@
+{
+  "pmbootstrap": "266f37fdb4baf9507c785221bf999fe62728d0e4",
+  "pmaports": "a86395a4dfef98513dcf6d6bbe1527d1ede2e37b",
+  "channel": "edge",
+  "kernel_tag": "6.16.4-r0",
+  "droidian_reference": "e63ba840597a4aaedb2dbe4527fbacfc30fb6e0c"
+}
