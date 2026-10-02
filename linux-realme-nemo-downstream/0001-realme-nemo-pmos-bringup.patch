@@ -1,0 +1,92 @@
+diff --git a/arch/arm64/configs/RMX2001_defconfig b/arch/arm64/configs/RMX2001_defconfig
+index 437519e463a8..491ac1c0f73b 100644
+--- a/arch/arm64/configs/RMX2001_defconfig
++++ b/arch/arm64/configs/RMX2001_defconfig
+@@ -2454,9 +2454,9 @@ CONFIG_TTY=y
+ CONFIG_VT=y
+ CONFIG_CONSOLE_TRANSLATIONS=y
+ CONFIG_VT_CONSOLE=y
++CONFIG_VT_HW_CONSOLE_BINDING=y
+ CONFIG_VT_CONSOLE_SLEEP=y
+ CONFIG_HW_CONSOLE=y
+-# CONFIG_VT_HW_CONSOLE_BINDING is not set
+ CONFIG_UNIX98_PTYS=y
+ CONFIG_LEGACY_PTYS=y
+ CONFIG_LEGACY_PTY_COUNT=16
+@@ -3212,7 +3212,7 @@ CONFIG_HDMI=y
+ CONFIG_DUMMY_CONSOLE=y
+ CONFIG_DUMMY_CONSOLE_COLUMNS=80
+ CONFIG_DUMMY_CONSOLE_ROWS=25
+-# CONFIG_FRAMEBUFFER_CONSOLE is not set
++CONFIG_FRAMEBUFFER_CONSOLE=y
+ CONFIG_LOGO=y
+ CONFIG_LOGO_LINUX_MONO=y
+ CONFIG_LOGO_LINUX_VGA16=y
+@@ -3711,7 +3711,8 @@ CONFIG_USB_CONFIGFS=y
+ CONFIG_USB_CONFIGFS_SERIAL=y
+ CONFIG_USB_CONFIGFS_ACM=y
+ # CONFIG_USB_CONFIGFS_OBEX is not set
+-# CONFIG_USB_CONFIGFS_NCM is not set
++CONFIG_USB_F_NCM=y
++CONFIG_USB_CONFIGFS_NCM=y
+ # CONFIG_USB_CONFIGFS_ECM is not set
+ # CONFIG_USB_CONFIGFS_ECM_SUBSET is not set
+ CONFIG_USB_CONFIGFS_RNDIS=y
+diff --git a/drivers/input/touchscreen/oppo_touchscreen/touchpanel_common_driver.c b/drivers/input/touchscreen/oppo_touchscreen/touchpanel_common_driver.c
+index 662ac254ae84..13656e7a4166 100755
+--- a/drivers/input/touchscreen/oppo_touchscreen/touchpanel_common_driver.c
++++ b/drivers/input/touchscreen/oppo_touchscreen/touchpanel_common_driver.c
+@@ -33,6 +33,16 @@
+ #ifdef CONFIG_FB
+ #include <linux/fb.h>
+ #include <linux/notifier.h>
++
++/*
++ * The MediaTek framebuffer bring-up mode keeps the panel powered when generic
++ * Linux userspace sends transient FBIOBLANK requests.  Keep the incell touch
++ * controller in the same power state; otherwise the framebuffer remains
++ * visible while this notifier suspends touch input.
++ */
++#ifdef CONFIG_MTK_FB
++extern int bypass_blank;
++#endif
+ #endif
+ 
+ #ifdef CONFIG_DRM_MSM
+@@ -5973,6 +5983,15 @@ static int fb_notifier_callback(struct notifier_block *self, unsigned long event
+     struct fb_event *evdata = data;
+     struct touchpanel_data *ts = container_of(self, struct touchpanel_data, fb_notif);
+ 
++#if defined(CONFIG_FB) && defined(CONFIG_MTK_FB)
++    if (bypass_blank &&
++        (event == FB_EARLY_EVENT_BLANK || event == FB_EVENT_BLANK)) {
++        TPD_DEBUG("ignore framebuffer blank event %lu in bypass mode\n",
++                  event);
++        return 0;
++    }
++#endif
++
+     //to aviod some kernel bug (at fbmem.c some local veriable are not initialized)
+ #ifdef CONFIG_DRM_MSM
+     if(event != MSM_DRM_EARLY_EVENT_BLANK && event != MSM_DRM_EVENT_BLANK)
+diff --git a/drivers/misc/mediatek/video/mt6785/videox/debug.c b/drivers/misc/mediatek/video/mt6785/videox/debug.c
+index 43eec3c4c3c5..ac2a19eb9bc3 100644
+--- a/drivers/misc/mediatek/video/mt6785/videox/debug.c
++++ b/drivers/misc/mediatek/video/mt6785/videox/debug.c
+@@ -69,7 +69,15 @@
+ 
+ static struct dentry *mtkfb_dbgfs;
+ unsigned int g_mobilelog;
+-int bypass_blank;
++/*
++ * Android's SurfaceFlinger coordinates FBIOBLANK with the rest of the
++ * MediaTek display power sequence.  A generic Linux initramfs does not, and
++ * its splash/virtual-keyboard clients can issue transient blank requests
++ * that repeatedly suspend, reset and resume the panel.  Keep the panel
++ * powered during postmarketOS bring-up; brightness and explicit system power
++ * management remain available through their dedicated paths.
++ */
++int bypass_blank = 1;
+ int lcm_mode_status;
+ int layer_layout_allow_non_continuous;
+ 

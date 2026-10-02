@@ -10,9 +10,14 @@ deviceinfo_arch="aarch64"
 
 # Device related
 deviceinfo_chassis="handset"
-deviceinfo_drm="true"
+deviceinfo_drm="false"
 deviceinfo_external_storage="true"
 deviceinfo_rootfs_image_sector_size="4096"
+
+# Downstream kernel uses the MediaTek USB gadget controller. Keep the
+# postmarketOS USB network deterministic for initramfs diagnostics and SSH.
+deviceinfo_usb_network_function="rndis.usb0"
+deviceinfo_usb_network_udc="musb-hdrc"
 
 # Bootimg related
 # Uses --recovery_dtbo with empty.dtbo like begonia (MTK LK bootloader requirement)

@@ -1,0 +1,95 @@
+# Reference: <https://postmarketos.org/vendorkernel>
+# Kernel config based on: arch/arm64/configs/RMX2001_defconfig
+# Maintainer: Dazai <dazai@gmail.com>
+pkgname=linux-realme-nemo-downstream
+pkgver=4.14.141
+pkgrel=0
+pkgdesc="Realme 6 (RMX2001) vendor kernel with MediaTek mtkfb display and Novatek touch"
+arch="aarch64"
+_carch="arm64"
+_flavor="realme-nemo-downstream"
+url="https://github.com/Hari-Pi/kernel_realme_RMX2001"
+license="GPL-2.0-only"
+options="!strip !check !tracedeps pmb:cross-native"
+makedepends="
+	bash
+	bc
+	bison
+	devicepkg-dev
+	elfutils-dev
+	flex
+	gcc6
+	gmp-dev
+	installkernel
+	linux-headers
+	openssl-dev
+	perl
+	python3
+	sed
+"
+
+# Compile with gcc6: the vendor tree predates support for newer compilers
+if [ "${CC:0:5}" != "gcc6-" ]; then
+	CC="gcc6-$CC"
+	HOSTCC="gcc6-gcc"
+	CROSS_COMPILE="gcc6-$CROSS_COMPILE"
+fi
+
+_repository="kernel_realme_RMX2001"
+_commit="b8a128b63d3174e5e35b2ff6b5afeacb4cd7d571"
+_config="config-$_flavor.$arch"
+# Out-of-tree build: this tree relies on the -I$(srctree)/$(src) flags kbuild
+# only adds when O= is set (drivers include sibling headers with <...>).
+_outdir="out"
+
+source="
+	$pkgname-$_commit.tar.gz::https://github.com/Hari-Pi/$_repository/archive/$_commit.tar.gz
+	$_config
+	0001-realme-nemo-pmos-bringup.patch
+	0002-drvgen-allow-empty-dtbo-list.patch
+"
+builddir="$srcdir/$_repository-$_commit"
+
+prepare() {
+	default_prepare
+	# 4.14 already ships a gcc6-compatible compiler-gcc.h; do not replace it
+	REPLACE_GCCH=0 . downstreamkernel_prepare
+
+	# The tree ships scripts/dtc/dtc_overlay as a prebuilt glibc x86_64 binary,
+	# which cannot run in the musl build chroot. The in-tree dtc supports -@.
+	sed -i 's|$(srctree)/scripts/dtc/dtc_overlay|$(objtree)/scripts/dtc/dtc|' \
+		scripts/Makefile.lib
+	grep -q 'objtree)/scripts/dtc/dtc -@' scripts/Makefile.lib
+}
+
+build() {
+	unset LDFLAGS
+	# Separate invocations: the dtbs rules need host tools (dtc_overlay) from
+	# "scripts", which races when everything is requested in one parallel make.
+	for target in scripts "Image.gz modules" dtbs; do
+		make O="$_outdir" ARCH="$_carch" CC="${CC:-gcc}" HOSTCC="${HOSTCC:-gcc}" \
+			KBUILD_BUILD_VERSION="$((pkgrel + 1))-postmarketOS" \
+			$target
+	done
+}
+
+package() {
+	# The vendor config appends the dtb to the image; pmOS builds the boot image
+	# with a separate dtb (see deviceinfo_bootimg_custom_args), so ship plain Image.gz.
+	KERNEL_IMAGE_NAME="Image.gz" \
+		downstreamkernel_package "$builddir" "$pkgdir" "$_carch" "$_flavor" "$_outdir"
+
+	make O="$_outdir" ARCH="$_carch" CC="${CC:-gcc}" HOSTCC="${HOSTCC:-gcc}" \
+		INSTALL_MOD_PATH="$pkgdir" INSTALL_MOD_STRIP=1 modules_install
+	rm -f "$pkgdir"/lib/modules/*/build "$pkgdir"/lib/modules/*/source
+
+	install -Dm644 "$builddir/$_outdir"/arch/$_carch/boot/dts/mediatek/mt6785.dtb \
+		"$pkgdir"/boot/dtbs/mediatek/mt6785-realme-nemo.dtb
+}
+
+sha512sums="
+0748456825a42be122fa0c6c66b8c4df0aa604eac86c1d6c859179153dc05a88c48e8faaa477ac5f7533e8fa5b87bf6e5460e94bbf4430e41022170edff56d8c  linux-realme-nemo-downstream-b8a128b63d3174e5e35b2ff6b5afeacb4cd7d571.tar.gz
+a8ffc48cd42d455ba2798086336c354354988a237326b2e2081ce321fa2da722c123ce45132698d4e341d7059e99811177af9d14a7af743241926b66b5b24078  config-realme-nemo-downstream.aarch64
+2d7937c100b890e42f2278cd4eabf3086a97dbb375d003d57dee9eabab2c977470f264c481d9710ae8284a49fe7f0ed0e48a7d0dcdd52d914b8ea329e8debe93  0001-realme-nemo-pmos-bringup.patch
+ee2a88a566b253afb3a164a08e7a22595631d907045da317fb926ddd9f486e08a98926631c51bde64be0b96eaec220c5f2e9987613b10caecf7255be7dd72418  0002-drvgen-allow-empty-dtbo-list.patch
+"

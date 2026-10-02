@@ -3,7 +3,7 @@
 pkgname=device-realme-nemo
 pkgdesc="Realme 6 (RMX2001)"
 pkgver=2
-pkgrel=1
+pkgrel=2
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -12,6 +12,7 @@ depends="
 	android-tools-avbtool
 	android-tools-mkbootimg
 	linux-realme-nemo
+	linux-pam
 	postmarketos-base
 "
 makedepends="android-tools-mkdtboimg devicepkg-dev dtc"
@@ -34,6 +35,15 @@ package() {
 		"$pkgdir/boot/"
 	install -Dm755 "$srcdir/finalize-bootimg.sh" \
 		"$pkgdir/usr/share/$pkgname/finalize-bootimg.sh"
+
+	# Alpine's PAM defaults live in /usr/lib/pam.d.  The greetd, sshd and
+	# openrc-user policies include these names from /etc/pam.d, so provide
+	# the compatibility links explicitly until the base image does so.
+	mkdir -p "$pkgdir/etc/pam.d"
+	for policy in base-account base-auth base-password base-session \
+		base-session-noninteractive login other su; do
+		ln -s "../../usr/lib/pam.d/$policy" "$pkgdir/etc/pam.d/$policy"
+	done
 }
 
 sha512sums="

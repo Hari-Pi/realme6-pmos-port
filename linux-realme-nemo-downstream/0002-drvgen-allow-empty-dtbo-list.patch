@@ -1,0 +1,16 @@
+Subject: [PATCH] drvgen: allow building without a dtbo overlay list
+
+With CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE disabled ABS_DTB_FILES is empty,
+so dtboimg.cfg.tmp is never created and the following mv fails.
+
+---
+--- a/scripts/drvgen/drvgen.mk	2026-10-01 15:19:42.588508143 -0700
++++ b/scripts/drvgen/drvgen.mk	2026-10-01 15:19:42.590414265 -0700
+@@ -90,6 +90,7 @@
+ 
+ $(objtree)/dtboimg.cfg: FORCE
+ 	rm -f $@.tmp
++	touch $@.tmp
+ 	$(foreach f,$(ABS_DTB_FILES),$(call mk_dtboimg_cfg,$(f),$@.tmp))
+ 	if ! cmp -s $@.tmp $@; then \
+ 		mv $@.tmp $@; \

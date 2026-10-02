@@ -51,7 +51,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--setup-only", action="store_true")
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 12))
-    parser.add_argument("--ui", choices=["console", "phosh"], default="console")
+    parser.add_argument("--ui", choices=["console", "phosh", "xfce4"], default="console")
     parser.add_argument("--service-manager", choices=["openrc", "systemd"], default="openrc",
                         help="init system (openrc is compatible with the vendor 4.14 kernel)")
     parser.add_argument("--ssh-key", type=Path)
